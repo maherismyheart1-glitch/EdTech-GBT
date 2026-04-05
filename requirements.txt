@@ -1,3 +1,5 @@
 streamlit
 google-generativeai
 PyPDF2
+langchain-text-splitters
+langchain-community
