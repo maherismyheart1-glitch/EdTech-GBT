@@ -2,135 +2,129 @@ import streamlit as st
 import google.generativeai as genai
 import os
 import PyPDF2
+import random
 
-# --- 1. إعدادات الصفحة وإخفاء العلامات المائية بأقصى قوة ---
-st.set_page_config(page_title="EdTech-GPT | المرجع الشامل", page_icon="🧠", layout="wide")
+# --- 1. إعدادات الصفحة والـ CSS الاحترافي ---
+st.set_page_config(page_title="EdTech-GPT Pro", page_icon="🎓", layout="wide")
 
-# كود CSS مكثف لإخفاء "Hosted with Streamlit" و "Made with Streamlit" وأي زوائد تانية
-hide_all_style = """
+hide_style = """
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    /* إخفاء زرار الـ Deploy والـ Badge الإجباري في الموبايل */
+    #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     .stAppDeployButton {display: none !important;}
     .viewerBadge_container__1QS1n {display: none !important;}
-    [data-testid="stStatusWidget"] {display: none !important;}
-    /* إضافة مسافة في أسفل الصفحة عشان البار ميرخمش على الكلام */
-    .main .block-container { padding-bottom: 150px; }
-    /* تحسين شكل الشات */
-    .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
+    .main .block-container { padding-top: 2rem; padding-bottom: 100px; }
+    /* تحسين شكل الكروت والأسئلة */
+    .stButton>button { width: 100%; border-radius: 10px; font-weight: bold; }
+    .answer-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-right: 5px solid #3B82F6; }
     </style>
 """
-st.markdown(hide_all_style, unsafe_allow_html=True)
+st.markdown(hide_style, unsafe_allow_html=True)
 
-# --- 2. عرض اللوجوهات والعناوين ---
+# --- 2. الهيدر (اللوجوهات والعناوين) ---
 col1, col2, col3 = st.columns([1, 3, 1])
-
 with col1:
-    # الأسامي هنا مطابقة للي موجود في الـ GitHub بتاعك بالظبط
-    if os.path.exists("college_logo.png.jpg"):
-        st.image("college_logo.png.jpg", width=110)
-    else:
-        st.write("🏛️ [لوجو الكلية]")
-
+    if os.path.exists("college_logo.png.jpg"): st.image("college_logo.png.jpg", width=100)
 with col2:
-    st.markdown("<h1 style='text-align: center; color: #3B82F6;'>EdTech-GPT المرجع الذكي 🧠</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 16px; color: #888;'>قاعدة بيانات المنهج الشاملة (تكنولوجيا تعليم وحاسب آلي)</p>", unsafe_allow_html=True)
-
+    st.markdown("<h1 style='text-align: center; color: #3B82F6;'>EdTech-GPT | المرجع الذكي 🧠</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-weight: bold; color: #10B981;'>إعداد: عبدالرحمن عصام & أروى محمود</p>", unsafe_allow_html=True)
 with col3:
-    if os.path.exists("dept_logo.png.jpg"):
-        st.image("dept_logo.png.jpg", width=110)
-    else:
-        st.write("💻 [لوجو القسم]")
+    if os.path.exists("dept_logo.png.jpg"): st.image("dept_logo.png.jpg", width=100)
 
-# --- 3. إعداد الـ API من الـ Secrets ---
+# --- 3. الاتصال بـ Gemini ---
 try:
-    API_KEY = st.secrets["API_KEY"]
-    genai.configure(api_key=API_KEY)
+    genai.configure(api_key=st.secrets["API_KEY"])
+    model = genai.GenerativeModel('gemini-1.5-flash')
 except:
-    st.error("⚠️ تأكد من إضافة API_KEY في إعدادات الـ Secrets على Streamlit Cloud")
+    st.error("Missing API Key in Secrets!")
     st.stop()
 
-# البحث عن الموديل المتاح تلقائياً
-@st.cache_resource
-def get_working_model():
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            if "flash" in m.name or "pro" in m.name:
-                return genai.GenerativeModel(m.name)
-    return None
-
-model = get_working_model()
-
-# --- 4. محرك قراءة الكتب (Caching لزيادة السرعة) ---
-@st.cache_data(show_spinner=False)
-def load_all_books():
-    full_text = ""
+# --- 4. معالجة البيانات (الكتب) ---
+@st.cache_data
+def get_knowledge():
+    text = ""
     if os.path.exists("books"):
-        files = [f for f in os.listdir("books") if f.endswith(".pdf")]
-        for file in files:
-            try:
-                reader = PyPDF2.PdfReader(f"books/{file}")
-                full_text += f"\n--- مصدر: {file} ---\n"
-                for page in reader.pages:
-                    full_text += page.extract_text() + " "
-            except: continue
-    return full_text
+        for f in os.listdir("books"):
+            if f.endswith(".pdf"):
+                try:
+                    pdf = PyPDF2.PdfReader(f"books/{f}")
+                    for page in pdf.pages: text += page.extract_text() + " "
+                except: continue
+    return text
 
-with st.spinner("جاري فحص المنهج..."):
-    knowledge_base = load_all_books()
+knowledge_base = get_knowledge()
 
-# --- 5. القائمة الجانبية (الأدوات وفريق العمل) ---
+# --- 5. ميزة الفلاش كاردز (MCQ Quiz) ---
+def generate_quiz():
+    prompt = f"""
+    بناءً على المنهج ده: {knowledge_base[:20000]}
+    ولد سؤال واحد 'اختيار من متعدد' (MCQ) مع 4 اختيارات، وحدد الإجابة الصحيحة.
+    تنسيق الإجابة لازم يكون كدة:
+    السؤال: [نص السؤال]
+    أ) [الاختيار 1]
+    ب) [الاختيار 2]
+    ج) [الاختيار 3]
+    د) [الاختيار 4]
+    الاجابة: [حرف الاختيار الصحيح فقط]
+    جاوب بالمصري البسيط.
+    """
+    response = model.generate_content(prompt)
+    return response.text
+
+# --- 6. القائمة الجانبية (الأدوات) ---
 with st.sidebar:
-    st.title("🛠️ أدوات المراجعة")
+    st.title("🛠️ أدوات الطالب")
     
-    # ميزة التلخيص
-    if st.button("✨ توليد ملخص ليلة الامتحان"):
-        if knowledge_base:
-            with st.spinner("جاري طحن الكتب واستخراج 50 سؤال..."):
-                prompt_sum = f"استخرج أهم 50 سؤال وجواب متوقعين في الامتحان من هذا المنهج: {knowledge_base[:40000]}"
-                summary_res = model.generate_content(prompt_sum)
-                st.success("تم التلخيص بنجاح!")
-                st.download_button("📥 تحميل الملخص (Text)", summary_res.text, "Final_Revision.txt")
-        else:
-            st.warning("⚠️ لا توجد كتب في فولدر books للتلخيص.")
+    if st.button("🃏 اختبرني (سؤال سريع)"):
+        with st.spinner("بجهز لك سؤال من المنهج..."):
+            st.session_state.quiz_data = generate_quiz()
+            st.session_state.show_quiz = True
+
+    if st.button("📥 تحميل ملخص ليلة الامتحان"):
+        res = model.generate_content(f"لخص أهم 50 نقطة في المنهج بالمصري: {knowledge_base[:30000]}")
+        st.download_button("تحميل الملخص", res.text, "Summary_EdTech.txt")
 
     st.divider()
-    st.markdown("### 👨‍💻 فريق العمل:")
-    st.success("**عبدالرحمن عصام محمد**\n\n**أروى محمود محمد**")
-    
-    st.divider()
-    st.markdown("### 🎥 القوائم التعليمية:")
-    st.caption("[Playlists - محاضرات وسكاشن](https://youtube.com/playlist?list=PLfG6QmZuFXbjjWSsTJtxvR6MZeVHfZe-Z)")
+    st.info("💡 نصيحة: اسأل 'الدحيح' عن أي حاجة مش فاهمها في السكاشن.")
 
-# --- 6. نظام الشات والذاكرة المستمرة ---
+# --- 7. نظام الشات (باللهجة المصرية والدقة العالية) ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# عرض الرسائل السابقة
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# عرض الكويز لو الطالب طلبه
+if "show_quiz" in st.session_state and st.session_state.show_quiz:
+    with st.expander("📝 سؤال التحدي!", expanded=True):
+        st.markdown(st.session_state.quiz_data)
+        if st.button("خلصت؟ اضغط هنا عشان تولد سؤال غيره"):
+            st.session_state.show_quiz = False
+            st.rerun()
 
-# استقبال السؤال الجديد
-if user_input := st.chat_input("اسألني أي شيء في المنهج..."):
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
+# عرض المحادثة
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]): st.markdown(m["content"])
+
+if prompt := st.chat_input("اسألني أي حاجة يا بطل..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("بفكر..."):
-            # بناء سياق المحادثة (الذاكرة)
-            chat_history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-5:]])
-            
-            final_prompt = f"""
-            أنت مساعد أكاديمي خبير. المنهج: {knowledge_base[:35000]}
-            تاريخ المحادثة: {chat_history}
-            سؤال الطالب: {user_input}
-            أجب بدقة بناءً على المنهج المتاح، وإذا كان السؤال برمجياً أجب كخبير.
-            """
-            
-            response = model.generate_content(final_prompt)
-            st.markdown(response.text)
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
+        context = "\n".join([f"{m['role']}:{m['content']}" for m in st.session_state.messages[-5:]])
+        
+        # الـ System Prompt المعدل (اللهجة المصرية + الدقة)
+        system_instruction = f"""
+        أنت 'الدحيح الأكاديمي'، مساعد ذكي لطلبة تكنولوجيا التعليم.
+        المنهج المتوفر: {knowledge_base[:40000]}
+        
+        قواعدك:
+        1. الإجابة لازم تكون بالعامية المصرية (زي شرح المعيدين في السكاشن).
+        2. استخدم الكتب المرفوعة كمصدر أساسي وأولويّة قصوى للإجابة.
+        3. لو السؤال مش في الكتب، ابحث في معلوماتك العامة بس نبه الطالب.
+        4. ابدأ بكلمات زي 'بص يا هندسة'، 'يا بطل'، 'يا دكتورة'.
+        5. لو في كود برمجي، اشرحه سطر سطر ببساطة.
+        6. خليك دقيق ومختصر ومفيد.
+        """
+        
+        full_prompt = f"{system_instruction}\nسياق المحادثة:\n{context}\nسؤال الطالب: {prompt}"
+        response = model.generate_content(full_prompt)
+        
+        st.markdown(response.text)
+        st.session_state.messages.append({"role": "assistant", "content": response.text})
