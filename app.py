@@ -4,45 +4,53 @@ import os
 import PyPDF2
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# 1. Page Config & Professional Styling
+# 1. Page Config
 st.set_page_config(page_title="EdTech-GPT Ultra", layout="wide", initial_sidebar_state="expanded")
 
+# CSS: Sidebar Left, Content Right, FIXED Sidebar Toggle
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
-    /* Sidebar on the LEFT */
+    /* شلنا إخفاء الهيدر عشان زرار البار يفضل شغال */
+    #MainMenu {visibility: hidden;} footer {visibility: hidden;} 
+    .stAppDeployButton {display: none !important;}
+    
+    /* إجبار البار يكون شمال */
     section[data-testid="stSidebar"] { left: 0 !important; right: auto !important; direction: ltr !important; border-right: 1px solid #ddd; }
-    /* Content on the RIGHT (Arabic Flow) */
-    .main .block-container { direction: rtl !important; text-align: right !important; padding-top: 2rem; }
+    
+    /* المحتوى الأساسي يمين */
+    .main .block-container { direction: rtl !important; text-align: right !important; padding-top: 1rem; }
+    
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif; }
-    .thinking-box { background-color: #f8faff; border-right: 5px solid #1E40AF; padding: 15px; border-radius: 8px; margin-bottom: 20px; color: #444; font-size: 0.9rem; line-height: 1.6; }
     .logo-container { display: flex; justify-content: center; margin-bottom: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. Top Header with 3 Logos
-# University Logo at the very top
+# 2. Header (3 Logos Fix)
+# اللوجو التالت (تمت إضافة بحث ذكي عشان يتفادى مشكلة الكابيتال والسمول)
 st.markdown("<div class='logo-container'>", unsafe_allow_html=True)
-if os.path.exists("University_logo.png"): 
-    st.image("University_logo.png", width=120)
+uni_logos = ["University_logo.png", "university_logo.png", "University_logo.jpg", "university_logo.jpg"]
+for logo in uni_logos:
+    if os.path.exists(logo):
+        st.image(logo, width=120)
+        break
 st.markdown("</div>", unsafe_allow_html=True)
 
-# College and Dept Logos beside the Title
+# لوجو الكلية والقسم
 l_col, m_col, r_col = st.columns([1, 2, 1])
 with l_col:
-    if os.path.exists("college_logo.png.jpg"): st.image("college_logo.png.jpg", width=90)
-    elif os.path.exists("college_logo.png"): st.image("college_logo.png", width=90)
+    if os.path.exists("college_logo.png"): st.image("college_logo.png", width=90)
+    elif os.path.exists("college_logo.png.jpg"): st.image("college_logo.png.jpg", width=90)
 with m_col:
-    st.markdown("<h1 style='text-align: center; color: #1E40AF; margin: 0;'>EdTech-GPT Ultra 🚀</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #1E40AF; margin: 0;'>EdTech-GPT 🚀</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-weight: bold; color: #666;'>إعداد: عبدالرحمن عصام & أروى محمود</p>", unsafe_allow_html=True)
 with r_col:
-    if os.path.exists("dept_logo.png.jpg"): st.image("dept_logo.png.jpg", width=90)
-    elif os.path.exists("dept_logo.png"): st.image("dept_logo.png", width=90)
+    if os.path.exists("dept_logo.png"): st.image("dept_logo.png", width=90)
+    elif os.path.exists("dept_logo.png.jpg"): st.image("dept_logo.png.jpg", width=90)
 
 st.divider()
 
-# 3. AI Engine Setup
+# 3. AI Config
 try:
     genai.configure(api_key=st.secrets["API_KEY"])
     model = genai.GenerativeModel('gemini-flash-latest') 
@@ -50,7 +58,7 @@ except Exception as e:
     st.error(f"Setup Error: {e}")
     st.stop()
 
-# 4. Smart Data Ingestion
+# 4. Smart Chunks (RAG)
 @st.cache_resource
 def load_and_chunk():
     text = ""
@@ -66,7 +74,7 @@ def load_and_chunk():
 
 chunks = load_and_chunk()
 
-# 5. Sidebar (Left)
+# 5. Sidebar
 with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>🎓 القائمة الجانبية</h2>", unsafe_allow_html=True)
     st.divider()
@@ -77,56 +85,42 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# 6. Interaction Logic
+# 6. Chat Interface
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Chat History
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): 
         st.markdown(msg["content"])
 
-def process_query(query):
-    # RAG Search
+# 7. AI Generator Function (Streaming)
+def stream_ai_response(query):
     relevant = [c for c in chunks if any(w.lower() in c.lower() for w in query.split())]
     context = "\n".join(relevant[:3]) if relevant else "\n".join(chunks[:3])
-    
     history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-2:]])
     
     prompt = f"""
-    Context: {context}
-    History: {history}
-    Query: {query}
-    
-    Task:
-    1. Analyze the text.
-    2. Explain your reasoning briefly.
-    3. Answer in friendly Egyptian Arabic.
-    
-    Format:
-    THOUGHT: <تحليلك السريع للمعلومة>
-    ANSWER: <الإجابة النهائية بالمصري>
+    أنت مساعد أكاديمي مصري دحيح.
+    سياق من الكتاب: {context}
+    المحادثة السابقة: {history}
+    سؤال الطالب: {query}
+    التعليمات: جاوب باختصار، بشكل مباشر، وبالمصري العامية الراقية بناءً على السياق فقط. لا تكتب خطوات تفكير.
     """
-    
     try:
-        res = model.generate_content(prompt)
-        text = res.text
-        if "THOUGHT:" in text and "ANSWER:" in text:
-            return text.split("THOUGHT:")[1].split("ANSWER:")[0].strip(), text.split("ANSWER:")[1].strip()
-        return None, text
-    except:
-        return None, "حصل ضغط على السيرفر، جرب تاني يا بطل."
+        # هنا فعلنا الـ Stream عشان يكتب كلمة بكلمة
+        response = model.generate_content(prompt, stream=True)
+        for chunk in response:
+            if chunk.text:
+                yield chunk.text
+    except Exception as e:
+        yield "السيرفر عليه ضغط حالياً، جرب تاني يا بطل."
 
-# Chat Input
 if user_input := st.chat_input("اسألني أي حاجة في المنهج..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): 
         st.markdown(user_input)
     
     with st.chat_message("assistant"):
-        thought, ans = process_query(user_input)
-        if thought:
-            with st.expander("🧠 كواليس التفكير (بناءً على المنهج)"):
-                st.markdown(f"<div class='thinking-box'>{thought}</div>", unsafe_allow_html=True)
-        st.markdown(ans)
-        st.session_state.messages.append({"role": "assistant", "content": ans})
+        # دالة st.write_stream بتعمل الـ Typewriter effect زي ChatGPT
+        full_response = st.write_stream(stream_ai_response(user_input))
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
