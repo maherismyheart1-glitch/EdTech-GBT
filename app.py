@@ -3,163 +3,129 @@ import google.generativeai as genai
 import os
 import PyPDF2
 
-# --- 1. إعدادات الهوية ---
+# --- 1. إعدادات الصفحة والجماليات ---
 st.set_page_config(page_title="EdTech-GPT | المرجع الشامل", page_icon="🧠", layout="wide")
 
-def find_any_image(name_part):
-    for file in os.listdir("."):
-        if name_part.lower() in file.lower() and file.lower().endswith(('.png', '.jpg', '.jpeg')):
-            return file
-    return None
+# كود سحري لإخفاء "Made with Streamlit" والبار العلوي لزيادة الاحترافية
+hide_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stApp { margin-top: -70px; }
+    </style>
+"""
+st.markdown(hide_style, unsafe_allow_html=True)
 
+# --- 2. عرض اللوجوهات والعناوين ---
 col1, col2, col3 = st.columns([1, 3, 1])
+
 with col1:
-    img_left = find_any_image("college")
-    if img_left: st.image(img_left, width=120)
+    if os.path.exists("college_logo.png"):
+        st.image("college_logo.png", width=120)
+    else:
+        st.write("🏛️ [لوجو الكلية]")
+
 with col2:
-    st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>EdTech-GPT المرجع الذكي 🧠</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 18px;'>قاعدة بيانات المنهج الشاملة (تكنولوجيا تعليم وحاسب آلي)</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #3B82F6;'>EdTech-GPT المرجع الذكي 🧠</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 18px; color: #6B7280;'>قاعدة بيانات المنهج الشاملة (تكنولوجيا تعليم وحاسب آلي)</p>", unsafe_allow_html=True)
+
 with col3:
-    img_right = find_any_image("dept")
-    if img_right: st.image(img_right, width=120)
+    if os.path.exists("dept_logo.png"):
+        st.image("dept_logo.png", width=120)
+    else:
+        st.write("💻 [لوجو القسم]")
 
-# --- 2. إعداد جيميناي والذاكرة ---
-API_KEY = st.secrets["API_KEY"]
-genai.configure(api_key=API_KEY)
-
-# اكتشاف الموديل الشغال تلقائياً عشان نمنع أعطال الـ 404
-@st.cache_resource(show_spinner=False)
-def get_working_model():
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            if "flash" in m.name or "pro" in m.name: return m.name
-    return None
-
-model_name = get_working_model()
-if not model_name:
-    st.error("⚠️ لم يتم العثور على نماذج مدعومة في مفتاح الـ API الخاص بك.")
+# --- 3. إعداد الـ API والذاكرة (من الأسرار) ---
+try:
+    # بيسحب المفتاح من Secrets اللي عملناها في Streamlit Cloud
+    API_KEY = st.secrets["API_KEY"]
+    genai.configure(api_key=API_KEY)
+except Exception:
+    st.error("⚠️ خطأ: مفتاح الـ API غير مضبوط في Secrets.")
     st.stop()
 
-model = genai.GenerativeModel(model_name)
+# اكتشاف أفضل موديل شغال تلقائياً
+@st.cache_resource
+def load_model():
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            if "flash" in m.name or "pro" in m.name:
+                return genai.GenerativeModel(m.name)
+    return None
 
-# تحميل الكتب والتخزين المؤقت
+model = load_model()
+
+# --- 4. محرك قراءة الكتب (تخزين مؤقت ذكي) ---
 @st.cache_data(show_spinner=False)
-def load_fixed_books():
-    context = ""
+def get_knowledge_base():
+    text_content = ""
     if os.path.exists("books"):
-        files = [f for f in os.listdir("books") if f.endswith(".pdf")]
-        for file in files:
-            try:
-                reader = PyPDF2.PdfReader(f"books/{file}")
-                context += f"\n--- مصدر: {file} ---\n"
-                for page in reader.pages:
-                    extracted = page.extract_text()
-                    if extracted: context += extracted
-            except Exception as e:
-                continue
-    return context
+        for file in os.listdir("books"):
+            if file.endswith(".pdf"):
+                try:
+                    pdf_reader = PyPDF2.PdfReader(f"books/{file}")
+                    text_content += f"\n--- كتاب: {file} ---\n"
+                    for page in pdf_reader.pages:
+                        text_content += page.extract_text() + " "
+                except: continue
+    return text_content
 
-with st.spinner("جاري تهيئة العقل المدبر وتحميل المناهج... 🚀"):
-    knowledge_base = load_fixed_books()
+knowledge_base = get_knowledge_base()
 
-# --- 3. القائمة الجانبية (فريق العمل، المصادر، والملخص السحري) ---
+# --- 5. القائمة الجانبية (الأدوات، الروابط، وفريق العمل) ---
 with st.sidebar:
-    st.header("📌 المصادر المثبتة في النظام")
-    if knowledge_base:
-        st.success("✅ تم استيعاب كتب الترم الثاني بالكامل")
-    else:
-        st.warning("⚠️ يرجى إضافة ملفات PDF في فولدر 'books'")
+    st.title("🛠️ لوحة التحكم")
     
-    st.divider()
-    
-    # --- الميزة الجديدة: زرار التلخيص ---
-    st.markdown("### 📝 المراجعة النهائية ليلة الامتحان:")
+    # ميزة التلخيص التلقائي
     if st.button("✨ توليد ملخص (أهم 50 سؤال)"):
         if knowledge_base:
-            with st.spinner("جاري طحن الكتب واستخراج أهم 50 سؤال وجواب... ⏳ (قد يستغرق بعض الوقت)"):
-                try:
-                    summary_prompt = f"بناءً على محتوى المناهج التالية: {knowledge_base[:60000]}\n\nالمطلوب: استخراج أهم 50 سؤال وجواب متوقعين في الامتحان لتغطية كافة أجزاء المنهج. نسق الإجابات بشكل واضح ومنظم ليتمكن الطالب من المذاكرة منها مباشرة."
-                    summary_response = model.generate_content(summary_prompt)
-                    
-                    st.success("🎉 تم تجهيز الملخص بنجاح!")
-                    # زرار التحميل المباشر
-                    st.download_button(
-                        label="📥 تحميل الملخص الآن (ملف Text)",
-                        data=summary_response.text,
-                        file_name="Final_Revision_50_QA.txt",
-                        mime="text/plain"
-                    )
-                except Exception as e:
-                    st.error(f"حدث خطأ أثناء التلخيص: {e}")
+            with st.spinner("جاري استخراج الأسئلة المتوقعة..."):
+                sum_prompt = f"حلل المنهج التالي: {knowledge_base[:50000]} واستخرج أهم 50 سؤال وجواب ليلة الامتحان."
+                summary = model.generate_content(sum_prompt)
+                st.download_button("📥 تحميل ملخص PDF/Text", summary.text, "Summary.txt")
         else:
-            st.error("⚠️ مفيش كتب في النظام عشان الخصها!")
+            st.warning("لا توجد كتب للتلخيص.")
 
     st.divider()
-    
-    st.markdown("### 🎥 قوائم التشغيل (Playlists):")
-    st.info("""
-    1. [محاضرات وسكاشن - الجزء الأول](https://youtube.com/playlist?list=PLfG6QmZuFXbjjWSsTJtxvR6MZeVHfZe-Z)
-    2. [محاضرات وسكاشن - الجزء الثاني](https://youtube.com/playlist?list=PLElQRioaFMAsYRrhrKCe6RIgG9Rf0eTHX)
-    3. [محاضرات وسكاشن - الجزء الثالث](https://youtube.com/playlist?list=PLXx5vC7WWgMQtNbfuPNANRfTEpverkXsi)
-    4. [محاضرات وسكاشن - الجزء الرابع](https://youtube.com/playlist?list=PLXx5vC7WWgMSb96Uudw7_sMyzKTzZz3GA)
-    5. [محاضرات وسكاشن - الجزء الخامس](https://youtube.com/playlist?list=PLXx5vC7WWgMQvyzPHl4Mmvg22G8xXP-lY)
-    """)
-    
+    st.markdown("### 🎥 محاضرات وسكاشن (Playlists):")
+    st.caption("[1. الجزء الأول](https://youtube.com/playlist?list=PLfG6QmZuFXbjjWSsTJtxvR6MZeVHfZe-Z)")
+    st.caption("[2. الجزء الثاني](https://youtube.com/playlist?list=PLElQRioaFMAsYRrhrKCe6RIgG9Rf0eTHX)")
+    st.caption("[3. الجزء الثالث](https://youtube.com/playlist?list=PLXx5vC7WWgMQtNbfuPNANRfTEpverkXsi)")
+    st.caption("[4. الجزء الرابع](https://youtube.com/playlist?list=PLXx5vC7WWgMSb96Uudw7_sMyzKTzZz3GA)")
+    st.caption("[5. الجزء الخامس](https://youtube.com/playlist?list=PLXx5vC7WWgMQvyzPHl4Mmvg22G8xXP-lY)")
+
     st.divider()
-    
     st.markdown("### 👨‍💻 فريق العمل:")
-    st.success("""
-    * عبدالرحمن عصام محمد
-    * أروى محمود محمد
-    """)
+    st.info("عبدالرحمن عصام محمد\n\nأروى محمود محمد")
 
-# --- 4. محرك الذكاء الاصطناعي (مع الذاكرة السياقية المستمرة) ---
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+# --- 6. نظام الشات والذاكرة السياقية ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-for message in st.session_state.chat_history:
-    avatar = "👤" if message["role"] == "user" else "🖥️"
-    with st.chat_message(message["role"], avatar=avatar):
+# عرض المحادثات القديمة
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if prompt := st.chat_input("اسأل في المنهج، أو اطرح مشكلة برمجية لحلها..."):
-    st.session_state.chat_history.append({"role": "user", "content": prompt})
-    with st.chat_message("user", avatar="👤"):
+# استقبال سؤال جديد
+if prompt := st.chat_input("اسأل في المنهج أو اطرح مشكلة برمجية..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
         st.markdown(prompt)
-    
-    with st.chat_message("assistant", avatar="🖥️"):
-        with st.spinner("جاري التحليل واستخراج الإجابة..."):
-            try:
-                # --- الميزة الجديدة: بناء ذاكرة المحادثة ---
-                # بناخد آخر 6 رسايل عشان الـ AI يفتكر إحنا بنتكلم في إيه ومينساش السياق
-                history_context = ""
-                for msg in st.session_state.chat_history[-6:]: 
-                    role_name = "الطالب" if msg["role"] == "user" else "المساعد"
-                    history_context += f"{role_name}: {msg['content']}\n"
-                
-                # صياغة الطلب الشامل (الكتب + الذاكرة + السؤال الجديد)
-                full_prompt = f"""
-                أنت مساعد أكاديمي خبير ومتخصص في قسم "تكنولوجيا التعليم والحاسب الآلي".
-                
-                المصادر المرجعية (كتب المنهج): 
-                {knowledge_base[:60000]}
-                
-                سياق المحادثة السابقة (تذكر هذا السياق لتربط الإجابات ببعضها ولتفهم قصد الطالب إذا أشار لشيء سابق):
-                {history_context}
-                
-                تعليمات الإجابة:
-                1. إذا كان السؤال نظرياً أو يخص المناهج، اعتمد بشكل أساسي على الكتب المرجعية واذكر اسم المصدر.
-                2. إذا كان السؤال برمجياً، استخدم خبرتك لتقديم الحل الأمثل والأدق فوراً.
-                3. كن مترابطاً في حديثك، إذا قال الطالب "أعطني مثالاً على ذلك"، يقصد آخر موضوع تحدثتم عنه في سياق المحادثة.
-                
-                سؤال الطالب الحالي: {prompt}
-                """
-                
-                response = model.generate_content(full_prompt)
-                answer = response.text
-                
-                st.markdown(answer)
-                st.session_state.chat_history.append({"role": "assistant", "content": answer})
-                
-            except Exception as e:
-                st.error(f"حدث خطأ في الاتصال، يرجى المحاولة مرة أخرى. (التفاصيل: {str(e)})")
+
+    with st.chat_message("assistant"):
+        # بناء السياق من الذاكرة (آخر 5 رسائل)
+        chat_context = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-5:]])
+        
+        full_query = f"""
+        أنت مساعد أكاديمي ذكي لقسم تكنولوجيا التعليم.
+        المنهج المتوفر: {knowledge_base[:40000]}
+        تاريخ المحادثة الحالي: {chat_context}
+        سؤال الطالب: {prompt}
+        أجب بدقة بناءً على المنهج، وإذا كان السؤال برمجياً أجب كخبير أكواد.
+        """
+        
+        response = model.generate_content(full_query)
+        st.markdown(response.text)
+        st.session_state.messages.append({"role": "assistant", "content": response.text})
