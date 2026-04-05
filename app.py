@@ -3,71 +3,70 @@ import google.generativeai as genai
 import os
 import PyPDF2
 
-# --- 1. إعدادات "الحديد والنار" لإجبار البار واللوجو على الظهور ---
+# --- 1. إعدادات "القوة القصوى" (إجبار الظهور) ---
 st.set_page_config(
-    page_title="EdTech-GPT Ultra", 
-    layout="wide", 
-    initial_sidebar_state="expanded" # ده اللي بيفتح البار أوتوماتيك
+    page_title="EdTech-GPT Final",
+    layout="wide",
+    initial_sidebar_state="expanded" # فتح البار إجباري
 )
 
-# كود CSS جبار لفرض التنسيق ومنع الاختفاء
+# كود CSS لنسف أي مشاكل في العرض
 st.markdown("""
     <style>
-    /* إخفاء زوائد ستريمليت */
+    /* إخفاء الزبالة التقنية */
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     .stAppDeployButton {display: none !important;}
     
-    /* إجبار البار الجانبي على الظهور بلون مميز */
+    /* تثبيت البار الجانبي ومنعه من الهروب */
     [data-testid="stSidebar"] {
-        min-width: 300px !important;
-        max-width: 300px !important;
-        background-color: #f1f5f9 !important;
+        background-color: #ffffff !important;
+        min-width: 320px !important;
     }
     
-    /* تحسين الخط العربي (Cairo) */
+    /* تنسيق الخط العربي (Cairo) */
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Cairo', sans-serif; text-align: right; }
+    html, body, [class*="css"] { font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; }
     
-    /* ستايل فقاعات الشات (History) */
-    .stChatMessage { border-radius: 15px; margin-bottom: 8px; border: 1px solid #ddd; }
+    /* تنسيق سجل الشات (History) */
+    .stChatMessage { border-radius: 12px; margin-bottom: 10px; border: 1px solid #eee; background-color: #fdfdfd; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. إعداد الـ API (استخدام gemini-pro للأمان) ---
+# --- 2. تشغيل الـ API (بأضمن موديل) ---
 try:
     genai.configure(api_key=st.secrets["API_KEY"])
-    model = genai.GenerativeModel('gemini-pro') 
+    model = genai.GenerativeModel('gemini-pro')
 except:
-    st.error("⚠️ تأكد من الـ API KEY في الـ Secrets!")
+    st.error("⚠️ مشكلة في الـ API Key.. اتأكد منه في الـ Secrets!")
     st.stop()
 
 # --- 3. قراءة المنهج (الـ 125 ميجا) ---
-@st.cache_data
-def load_books():
+@st.cache_data(show_spinner=False)
+def load_curriculum():
     text = ""
     if os.path.exists("books"):
         for f in os.listdir("books"):
             if f.lower().endswith(".pdf"):
                 try:
                     pdf = PyPDF2.PdfReader(f"books/{f}")
-                    for page in pdf.pages[:25]: text += page.extract_text() + " "
+                    for page in pdf.pages[:30]: text += page.extract_text() + " "
                 except: continue
     return text
 
-knowledge_base = load_books()
+knowledge_base = load_curriculum()
 
 # --- 4. البار الجانبي (Sidebar) - الهوية وفريق العمل ---
 with st.sidebar:
-    st.markdown("<h2 style='text-align: center;'>🎓 القائمة الرئيسية</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🎓 المساعد الأكاديمي</h2>", unsafe_allow_html=True)
     
-    # حل "ذكي" لمشكلة اللوجوهات (بيدور على أي ملف صورة في الفولدر الرئيسي)
-    images = [f for f in os.listdir('.') if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-    for img in images:
-        if "college" in img.lower() or "dept" in img.lower():
-            st.image(img, use_container_width=True)
+    # عرض الصور (بيدور على أي ملف فيه اسم logo)
+    all_files = os.listdir('.')
+    for f in all_files:
+        if "logo" in f.lower() and f.lower().endswith(('.png', '.jpg', '.jpeg')):
+            st.image(f, use_container_width=True)
     
     st.divider()
-    st.markdown("### 👨‍💻 فريق العمل")
+    st.markdown("### 👨‍💻 فريق عمل المشروع")
     names = ["عبدالرحمن عصام", "أروى محمود", "إسراء عادل", "أسماء أحمد", "سحر أحمد", "شهد طه", "شيماء يوسف", "شروق عطية"]
     for n in names: st.write(f"• {n}")
     
@@ -78,34 +77,34 @@ with st.sidebar:
 
 # --- 5. الواجهة الرئيسية وسجل الشات (History) ---
 st.markdown("<h1 style='text-align: center; color: #1E40AF;'>EdTech-GPT Pro 🚀</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; font-weight: bold;'>قسم تكنولوجيا التعليم والحاسب الآلي</p>", unsafe_allow_html=True)
 
-# تهيئة سجل المحادثة لو مش موجود
+# تهيئة السجل (History)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# عرض كل الرسائل القديمة (ده السجل اللي طلبته)
+# عرض السجل التاريخي للمحادثة
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- 6. الشات المباشر ---
+# --- 6. الشات الحي ---
 if prompt := st.chat_input("اسأل 'الدحيح' دلوقتي..."):
-    # حفظ سؤال المستخدم في السجل
+    # حفظ السؤال في التاريخ
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("بفكر بالمصري..."):
-            # دمج التاريخ مع السؤال الجديد عشان "يفتكر" الكلام
-            history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-3:]])
-            
-            full_prompt = f"المنهج: {knowledge_base[:30000]}\nسياق المحادثة:\n{history}\nأجب بالمصري على: {prompt}"
-            
-            try:
-                response = model.generate_content(full_prompt)
-                st.markdown(response.text)
-                # حفظ رد الدحيح في السجل
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except:
-                st.error("حصل ضغط على السيرفر، جرب تاني!")
+        # بناء السياق التاريخي (بيفتكر اللي اتقال قبل كدة)
+        history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-3:]])
+        
+        full_p = f"المنهج: {knowledge_base[:30000]}\nسياق المحادثة:\n{history}\nأجب بالمصري على: {prompt}"
+        
+        try:
+            response = model.generate_content(full_p)
+            st.markdown(response.text)
+            # حفظ الرد في التاريخ
+            st.session_state.messages.append({"role": "assistant", "content": response.text})
+        except:
+            st.error("حصل ضغط على السيرفر، جرب تسأل تاني!")
