@@ -3,108 +3,86 @@ import google.generativeai as genai
 import os
 import PyPDF2
 
-# --- 1. إعدادات "القوة القصوى" (إجبار الظهور) ---
-st.set_page_config(
-    page_title="EdTech-GPT Final",
-    layout="wide",
-    initial_sidebar_state="expanded" # فتح البار إجباري
-)
+# --- 1. الإعدادات الأساسية (البار مفتوح والشاشة واسعة) ---
+st.set_page_config(page_title="EdTech-GPT", layout="wide", initial_sidebar_state="expanded")
 
-# كود CSS لنسف أي مشاكل في العرض
+# CSS بسيط جداً للتنسيق من غير تعقيد
 st.markdown("""
     <style>
-    /* إخفاء الزبالة التقنية */
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     .stAppDeployButton {display: none !important;}
-    
-    /* تثبيت البار الجانبي ومنعه من الهروب */
-    [data-testid="stSidebar"] {
-        background-color: #ffffff !important;
-        min-width: 320px !important;
-    }
-    
-    /* تنسيق الخط العربي (Cairo) */
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cairo&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; }
-    
-    /* تنسيق سجل الشات (History) */
-    .stChatMessage { border-radius: 12px; margin-bottom: 10px; border: 1px solid #eee; background-color: #fdfdfd; }
+    .stChatMessage { border-radius: 10px; margin-bottom: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. تشغيل الـ API (بأضمن موديل) ---
+# --- 2. الاتصال بالذكاء الاصطناعي ---
 try:
     genai.configure(api_key=st.secrets["API_KEY"])
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-1.5-pro') # الموديل الأقوى والأثبت
 except:
-    st.error("⚠️ مشكلة في الـ API Key.. اتأكد منه في الـ Secrets!")
+    st.error("تأكد من الـ API KEY في السيكرتس")
     st.stop()
 
-# --- 3. قراءة المنهج (الـ 125 ميجا) ---
-@st.cache_data(show_spinner=False)
-def load_curriculum():
+# --- 3. قراءة الكتب (زتونة المنهج) ---
+@st.cache_data
+def load_data():
     text = ""
     if os.path.exists("books"):
         for f in os.listdir("books"):
             if f.lower().endswith(".pdf"):
                 try:
                     pdf = PyPDF2.PdfReader(f"books/{f}")
-                    for page in pdf.pages[:30]: text += page.extract_text() + " "
+                    for page in pdf.pages[:20]: text += page.extract_text() + " "
                 except: continue
     return text
 
-knowledge_base = load_curriculum()
+curriculum_text = load_data()
 
-# --- 4. البار الجانبي (Sidebar) - الهوية وفريق العمل ---
+# --- 4. البار الجانبي (فريق العمل واللوجوهات) ---
 with st.sidebar:
-    st.markdown("<h2 style='text-align: center;'>🎓 المساعد الأكاديمي</h2>", unsafe_allow_html=True)
+    # عرض الصور بأي امتداد موجود
+    for f in os.listdir('.'):
+        if any(x in f.lower() for x in ["college", "dept", "logo"]) and f.lower().endswith(('.png', '.jpg', '.jpeg')):
+            st.image(f)
     
-    # عرض الصور (بيدور على أي ملف فيه اسم logo)
-    all_files = os.listdir('.')
-    for f in all_files:
-        if "logo" in f.lower() and f.lower().endswith(('.png', '.jpg', '.jpeg')):
-            st.image(f, use_container_width=True)
+    st.markdown("### 👨‍💻 فريق العمل")
+    team = ["عبدالرحمن عصام", "أروى محمود", "إسراء عادل", "أسماء أحمد", "سحر أحمد", "شهد طه", "شيماء يوسف", "شروق عطية"]
+    for n in team: st.write(f"• {n}")
     
-    st.divider()
-    st.markdown("### 👨‍💻 فريق عمل المشروع")
-    names = ["عبدالرحمن عصام", "أروى محمود", "إسراء عادل", "أسماء أحمد", "سحر أحمد", "شهد طه", "شيماء يوسف", "شروق عطية"]
-    for n in names: st.write(f"• {n}")
-    
-    st.divider()
-    if st.button("🗑️ مسح سجل المحادثة"):
+    if st.button("🗑️ مسح المحادثة"):
         st.session_state.messages = []
         st.rerun()
 
 # --- 5. الواجهة الرئيسية وسجل الشات (History) ---
-st.markdown("<h1 style='text-align: center; color: #1E40AF;'>EdTech-GPT Pro 🚀</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-weight: bold;'>قسم تكنولوجيا التعليم والحاسب الآلي</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>EdTech-GPT 🧠</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>المساعد الذكي لقسم تكنولوجيا التعليم</p>", unsafe_allow_html=True)
 
-# تهيئة السجل (History)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# عرض السجل التاريخي للمحادثة
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# عرض المحادثات السابقة (سجل الشات)
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
 
-# --- 6. الشات الحي ---
-if prompt := st.chat_input("اسأل 'الدحيح' دلوقتي..."):
-    # حفظ السؤال في التاريخ
+# --- 6. استقبال الأسئلة ---
+if prompt := st.chat_input("اسألني أي حاجة في المنهج..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        # بناء السياق التاريخي (بيفتكر اللي اتقال قبل كدة)
-        history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-3:]])
-        
-        full_p = f"المنهج: {knowledge_base[:30000]}\nسياق المحادثة:\n{history}\nأجب بالمصري على: {prompt}"
-        
-        try:
-            response = model.generate_content(full_p)
-            st.markdown(response.text)
-            # حفظ الرد في التاريخ
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
-        except:
-            st.error("حصل ضغط على السيرفر، جرب تسأل تاني!")
+        with st.spinner("بفكر..."):
+            # بياخد آخر رسالتين عشان يفتكر السياق
+            history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-3:]])
+            
+            full_query = f"أنت مساعد أكاديمي. المنهج: {curriculum_text[:30000]}\nالسياق: {history}\nجاوب بالمصري على: {prompt}"
+            
+            try:
+                response = model.generate_content(full_query)
+                st.markdown(response.text)
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
+            except:
+                st.error("السيرفر مشغول، جرب تسأل تاني.")
