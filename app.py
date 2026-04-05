@@ -91,7 +91,7 @@ def stream_rag_answer(query):
     try:
         # أ. تحويل سؤال الطالب لأرقام
         query_vector = genai.embed_content(
-            model="models/text-embedding-004",
+         model="models/embedding-001",
             content=query,
             task_type="RETRIEVAL_QUERY"
         )['embedding']
