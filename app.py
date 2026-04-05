@@ -2,51 +2,45 @@ import streamlit as st
 import google.generativeai as genai
 import os
 import PyPDF2
+import glob
+import time
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # 1. Page Config
 st.set_page_config(page_title="EdTech-GPT Ultra", layout="wide", initial_sidebar_state="expanded")
 
-# CSS: Sidebar Left, Content Right, FIXED Sidebar Toggle
 st.markdown("""
     <style>
-    /* شلنا إخفاء الهيدر عشان زرار البار يفضل شغال */
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} 
     .stAppDeployButton {display: none !important;}
-    
-    /* إجبار البار يكون شمال */
     section[data-testid="stSidebar"] { left: 0 !important; right: auto !important; direction: ltr !important; border-right: 1px solid #ddd; }
-    
-    /* المحتوى الأساسي يمين */
     .main .block-container { direction: rtl !important; text-align: right !important; padding-top: 1rem; }
-    
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif; }
     .logo-container { display: flex; justify-content: center; margin-bottom: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. Header (3 Logos Fix)
-# اللوجو التالت (تمت إضافة بحث ذكي عشان يتفادى مشكلة الكابيتال والسمول)
+# 2. Header & Logos (صائد اللوجوهات الذكي)
 st.markdown("<div class='logo-container'>", unsafe_allow_html=True)
-uni_logos = ["University_logo.png", "university_logo.png", "University_logo.jpg", "university_logo.jpg"]
-for logo in uni_logos:
-    if os.path.exists(logo):
-        st.image(logo, width=120)
-        break
+# الكود ده هيدور على أي صورة فيها كلمة university سواء كابيتال أو سمول
+uni_logo_files = glob.glob("*[Uu]niversity_logo*")
+if uni_logo_files:
+    st.image(uni_logo_files[0], width=120)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# لوجو الكلية والقسم
 l_col, m_col, r_col = st.columns([1, 2, 1])
 with l_col:
-    if os.path.exists("college_logo.png"): st.image("college_logo.png", width=90)
-    elif os.path.exists("college_logo.png.jpg"): st.image("college_logo.png.jpg", width=90)
+    college_logos = glob.glob("*college_logo*")
+    if college_logos: st.image(college_logos[0], width=90)
 with m_col:
     st.markdown("<h1 style='text-align: center; color: #1E40AF; margin: 0;'>EdTech-GPT 🚀</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-weight: bold; color: #666;'>إعداد: عبدالرحمن عصام & أروى محمود</p>", unsafe_allow_html=True)
 with r_col:
-    if os.path.exists("dept_logo.png"): st.image("dept_logo.png", width=90)
-    elif os.path.exists("dept_logo.png.jpg"): st.image("dept_logo.png.jpg", width=90)
+    dept_logos = glob.glob("*dept_logo*")
+    if dept_logos: st.image(dept_logos[0], width=90)
 
 st.divider()
 
@@ -58,9 +52,9 @@ except Exception as e:
     st.error(f"Setup Error: {e}")
     st.stop()
 
-# 4. Smart Chunks (RAG)
-@st.cache_resource
-def load_and_chunk():
+# 4. Enterprise Data Pipeline (البحث الصاروخي بـ FAISS)
+@st.cache_resource(show_spinner="بجهز المنهج بذكاء الشركات... ثواني يا بطل ⏳")
+def build_vector_database():
     text = ""
     if os.path.exists("books"):
         for f in os.listdir("books"):
@@ -69,10 +63,20 @@ def load_and_chunk():
                     pdf = PyPDF2.PdfReader(f"books/{f}")
                     for page in pdf.pages: text += page.extract_text() + " "
                 except: continue
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1100, chunk_overlap=150)
-    return splitter.split_text(text)
+    
+    if not text:
+        return None
 
-chunks = load_and_chunk()
+    # التقطيع
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+    chunks = splitter.split_text(text)
+    
+    # تحويل النصوص لأرقام وبناء قاعدة البيانات (أسرع مليون مرة من البحث العادي)
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    vector_db = FAISS.from_texts(chunks, embeddings)
+    return vector_db
+
+db = build_vector_database()
 
 # 5. Sidebar
 with st.sidebar:
@@ -93,10 +97,15 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): 
         st.markdown(msg["content"])
 
-# 7. AI Generator Function (Streaming)
+# 7. Ultimate Streaming Generator
 def stream_ai_response(query):
-    relevant = [c for c in chunks if any(w.lower() in c.lower() for w in query.split())]
-    context = "\n".join(relevant[:3]) if relevant else "\n".join(chunks[:3])
+    # البحث الذكي بياخد أجزاء من الثانية دلوقتي!
+    if db:
+        docs = db.similarity_search(query, k=3)
+        context = "\n".join([doc.page_content for doc in docs])
+    else:
+        context = "لا يوجد منهج متاح."
+
     history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-2:]])
     
     prompt = f"""
@@ -104,16 +113,19 @@ def stream_ai_response(query):
     سياق من الكتاب: {context}
     المحادثة السابقة: {history}
     سؤال الطالب: {query}
-    التعليمات: جاوب باختصار، بشكل مباشر، وبالمصري العامية الراقية بناءً على السياق فقط. لا تكتب خطوات تفكير.
+    التعليمات: جاوب باختصار، بشكل مباشر، وبالمصري العامية الراقية بناءً على السياق فقط.
     """
     try:
-        # هنا فعلنا الـ Stream عشان يكتب كلمة بكلمة
         response = model.generate_content(prompt, stream=True)
         for chunk in response:
             if chunk.text:
-                yield chunk.text
+                # الكود ده بيجبره يكتب "كلمة بكلمة" عشان يديك تأثير الـ Typewriter اللي بتحبه
+                words = chunk.text.split(" ")
+                for word in words:
+                    yield word + " "
+                    time.sleep(0.03) # تأخير بسيط جداً لعمل الإيفيكت
     except Exception as e:
-        yield "السيرفر عليه ضغط حالياً، جرب تاني يا بطل."
+        yield "السيرفر مهنج شوية، جرب تاني يا بطل."
 
 if user_input := st.chat_input("اسألني أي حاجة في المنهج..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -121,6 +133,6 @@ if user_input := st.chat_input("اسألني أي حاجة في المنهج..."
         st.markdown(user_input)
     
     with st.chat_message("assistant"):
-        # دالة st.write_stream بتعمل الـ Typewriter effect زي ChatGPT
+        # دالة st.write_stream مع المولد الجديد هتديك شكل خرافي في الكتابة
         full_response = st.write_stream(stream_ai_response(user_input))
         st.session_state.messages.append({"role": "assistant", "content": full_response})
