@@ -10,7 +10,7 @@ st.set_page_config(page_title="EdTech-GPT Ultra", layout="wide", initial_sidebar
 
 st.markdown("""
     <style>
-    /* إخفاء القوائم الافتراضية وزرار الرفع */
+    /* إخفاء القوائم الافتراضية */
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} 
     .stAppDeployButton {display: none !important;}
     
@@ -89,11 +89,12 @@ for msg in st.session_state.messages:
 # دالة البحث الصاروخي والرد
 def stream_rag_answer(query):
     try:
-        # أ. تحويل سؤال الطالب لأرقام
+        # أ. تحويل سؤال الطالب لأرقام (بالموديل الجديد وحجم 768)
         query_vector = genai.embed_content(
-         model="models/embedding-001",
+            model="models/gemini-embedding-001",
             content=query,
-            task_type="RETRIEVAL_QUERY"
+            task_type="RETRIEVAL_QUERY",
+            output_dimensionality=768
         )['embedding']
         
         # ب. البحث في Pinecone في أقل من ثانية
