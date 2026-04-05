@@ -3,8 +3,6 @@ import google.generativeai as genai
 import os
 import PyPDF2
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import理论TransformersEmbeddings
 
 # 1. Page Config
 st.set_page_config(page_title="EdTech-GPT Ultra", layout="wide", initial_sidebar_state="expanded")
@@ -34,17 +32,18 @@ with r:
 
 st.divider()
 
-# 3. AI & Vector Setup
+# 3. AI Setup
 try:
     genai.configure(api_key=st.secrets["API_KEY"])
-    model = genai.GenerativeModel('gemini-flash-latest') # The Alias Fix
+    # Using the fix you found: gemini-flash-latest
+    model = genai.GenerativeModel('gemini-flash-latest') 
 except Exception as e:
     st.error(f"Setup Error: {e}")
     st.stop()
 
-# 4. Smart Processing with FAISS (The Deep Solution)
+# 4. Smart Processing (RAG)
 @st.cache_resource
-def build_vector_db():
+def build_knowledge_base():
     all_text = ""
     if os.path.exists("books"):
         for f in os.listdir("books"):
@@ -55,14 +54,11 @@ def build_vector_db():
                         all_text += page.extract_text() + " "
                 except: continue
     
-    # Chunking
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
-    chunks = splitter.split_text(all_text)
-    
-    # Using a simple but fast embedding model
-    return chunks
+    # Recursive Chunking for deeper understanding
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=200)
+    return splitter.split_text(all_text)
 
-chunks_db = build_vector_db()
+chunks_db = build_knowledge_base()
 
 # 5. Sidebar
 with st.sidebar:
@@ -75,11 +71,10 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# 6. Logic
+# 6. Chat Logic
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Quick Action Buttons
 c1, c2 = st.columns(2)
 with c1: btn_sum = st.button("✨ تلخيص المنهج")
 with c2: btn_quiz = st.button("🃏 سؤال مفاجئ")
@@ -87,38 +82,37 @@ with c2: btn_quiz = st.button("🃏 سؤال مفاجئ")
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-def run_smart_ai(query):
-    # Smart Search: find only top 3 relevant chunks
-    relevant_context = "\n".join([c for c in chunks_db if any(w.lower() in c.lower() for w in query.split())][:3])
-    if not relevant_context: relevant_context = "\n".join(chunks_db[:3])
+def run_ai_logic(query):
+    # Smart filtering for relevant context
+    relevant = [c for c in chunks_db if any(w.lower() in c.lower() for w in query.split())]
+    context = "\n".join(relevant[:3]) if relevant else "\n".join(chunks_db[:3])
     
     history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-2:]])
     
-    # Deep Reasoning Prompt
     prompt = f"""
-    أنت خبير أكاديمي دحيح. جاوب بالمصري العامية وبدقة شديدة.
-    سياق المنهج: {relevant_context}
-    سجل المحادثة: {history}
-    سؤال المستخدم: {query}
-    التعليمات: فكر خطوة بخطوة واستخلص الإجابة من السياق فقط.
+    أنت خبير أكاديمي مصري. جاوب بدقة من السياق المرفق.
+    السياق: {context}
+    السجل: {history}
+    سؤال الطالب: {query}
+    التعليمات: جاوب بالعامية المصرية، فكر بعمق، وكن منظماً.
     """
     
     try:
         response = model.generate_content(prompt)
         return response.text
-    except Exception as e:
-        return "السيرفر مضغوط حالياً، جرب كمان ثانية يا بطل."
+    except:
+        return "السيرفر مشغول، حاول كمان ثانية يا بطل."
 
 if btn_sum:
     with st.chat_message("assistant"):
-        ans = run_smart_ai("لخص أهم 5 مفاهيم في المنهج.")
+        ans = run_ai_logic("لخص أهم نقاط المنهج في نقاط.")
         st.markdown(ans)
         st.session_state.messages.append({"role": "assistant", "content": ans})
 
-if user_input := st.chat_input("اسأل 'الدحيح' في أي حاجة..."):
+if user_input := st.chat_input("اسأل 'الدحيح' هنا..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): st.markdown(user_input)
     with st.chat_message("assistant"):
-        ans = run_smart_ai(user_input)
+        ans = run_ai_logic(user_input)
         st.markdown(ans)
         st.session_state.messages.append({"role": "assistant", "content": ans})
