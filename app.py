@@ -24,7 +24,7 @@ with col3:
     if img_right: st.image(img_right, width=120)
 
 # --- 2. إعداد جيميناي والذاكرة ---
-API_KEY = "AIzaSyCHrMgc__zlWI4e688w79bzn6jBGKjnufY" # <--- متنساش تحط مفتاحك هنا
+API_KEY = st.secrets["AIzaSyDaZcdX2B3GwG4G5QhGNXSYUk9y1XW0OE8"]
 genai.configure(api_key=API_KEY)
 
 # اكتشاف الموديل الشغال تلقائياً عشان نمنع أعطال الـ 404
