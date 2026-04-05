@@ -3,111 +3,109 @@ import google.generativeai as genai
 import os
 import PyPDF2
 
-# --- 1. إعدادات الصفحة (إجبار البار الجانبي يفضل مفتوح) ---
+# --- 1. إعدادات "الحديد والنار" لإجبار البار واللوجو على الظهور ---
 st.set_page_config(
     page_title="EdTech-GPT Ultra", 
-    page_icon="🧠", 
     layout="wide", 
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded" # ده اللي بيفتح البار أوتوماتيك
 )
 
-# كود CSS مكثف لإخفاء زوائد Streamlit وتحسين الشكل
+# كود CSS جبار لفرض التنسيق ومنع الاختفاء
 st.markdown("""
     <style>
+    /* إخفاء زوائد ستريمليت */
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     .stAppDeployButton {display: none !important;}
-    /* تحسين شكل البار الجانبي */
-    section[data-testid="stSidebar"] { background-color: #f8f9fa; border-right: 1px solid #e0e0e0; }
-    /* تحسين الخط العربي */
+    
+    /* إجبار البار الجانبي على الظهور بلون مميز */
+    [data-testid="stSidebar"] {
+        min-width: 300px !important;
+        max-width: 300px !important;
+        background-color: #f1f5f9 !important;
+    }
+    
+    /* تحسين الخط العربي (Cairo) */
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif; text-align: right; }
-    .stChatMessage { border-radius: 15px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    
+    /* ستايل فقاعات الشات (History) */
+    .stChatMessage { border-radius: 15px; margin-bottom: 8px; border: 1px solid #ddd; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. إعداد الـ API ---
+# --- 2. إعداد الـ API (استخدام gemini-pro للأمان) ---
 try:
     genai.configure(api_key=st.secrets["API_KEY"])
-    # الموديل ده هو الأضمن حالياً لتجنب خطأ NotFound
-    model = genai.GenerativeModel('gemini-1.5-flash') 
-except Exception as e:
-    st.error("تأكد من وضع API_KEY في إعدادات Secrets على Streamlit Cloud")
+    model = genai.GenerativeModel('gemini-pro') 
+except:
+    st.error("⚠️ تأكد من الـ API KEY في الـ Secrets!")
     st.stop()
 
-# --- 3. محرك قراءة الكتب (125 ميجا) ---
-@st.cache_data(show_spinner=False)
-def load_data():
-    full_text = ""
+# --- 3. قراءة المنهج (الـ 125 ميجا) ---
+@st.cache_data
+def load_books():
+    text = ""
     if os.path.exists("books"):
-        files = [f for f in os.listdir("books") if f.endswith(".pdf")]
-        for f in files:
-            try:
-                reader = PyPDF2.PdfReader(f"books/{f}")
-                for page in reader.pages[:30]: # قراءة زتونة كل كتاب
-                    full_text += page.extract_text() + " "
-            except: continue
-    return full_text
+        for f in os.listdir("books"):
+            if f.lower().endswith(".pdf"):
+                try:
+                    pdf = PyPDF2.PdfReader(f"books/{f}")
+                    for page in pdf.pages[:25]: text += page.extract_text() + " "
+                except: continue
+    return text
 
-knowledge_base = load_data()
+knowledge_base = load_books()
 
-# --- 4. البار الجانبي (Sidebar) - دايماً ظاهر ---
+# --- 4. البار الجانبي (Sidebar) - الهوية وفريق العمل ---
 with st.sidebar:
-    # محاولة عرض اللوجوهات بأي اسم موجود في GitHub
-    log_path = "college_logo.png.jpg" if os.path.exists("college_logo.png.jpg") else "college_logo.png"
-    if os.path.exists(log_path):
-        st.image(log_path)
+    st.markdown("<h2 style='text-align: center;'>🎓 القائمة الرئيسية</h2>", unsafe_allow_html=True)
     
-    st.markdown("### 👨‍💻 فريق عمل المشروع")
-    team_list = [
-        "عبدالرحمن عصام محمد", "أروى محمود محمد", "إسراء عادل مصطفى", 
-        "أسماء أحمد محمد", "سحر أحمد متولي", "شهد طه أبو السعود", 
-        "شيماء يوسف سعيد", "شروق عطية"
-    ]
-    for member in team_list:
-        st.write(f"• {member}")
+    # حل "ذكي" لمشكلة اللوجوهات (بيدور على أي ملف صورة في الفولدر الرئيسي)
+    images = [f for f in os.listdir('.') if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    for img in images:
+        if "college" in img.lower() or "dept" in img.lower():
+            st.image(img, use_container_width=True)
     
     st.divider()
-    if st.button("🗑️ مسح سجل الشات"):
+    st.markdown("### 👨‍💻 فريق العمل")
+    names = ["عبدالرحمن عصام", "أروى محمود", "إسراء عادل", "أسماء أحمد", "سحر أحمد", "شهد طه", "شيماء يوسف", "شروق عطية"]
+    for n in names: st.write(f"• {n}")
+    
+    st.divider()
+    if st.button("🗑️ مسح سجل المحادثة"):
         st.session_state.messages = []
         st.rerun()
 
-# --- 5. الواجهة الرئيسية وسجل الشات ---
+# --- 5. الواجهة الرئيسية وسجل الشات (History) ---
 st.markdown("<h1 style='text-align: center; color: #1E40AF;'>EdTech-GPT Pro 🚀</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-weight: bold;'>قسم تكنولوجيا التعليم والحاسب الآلي - الترم الثاني</p>", unsafe_allow_html=True)
 
-# تهيئة سجل المحادثة (Chat History)
+# تهيئة سجل المحادثة لو مش موجود
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# عرض السجل القديم (عشان الطالب يشوف هو سأل في إيه قبل كدة)
+# عرض كل الرسائل القديمة (ده السجل اللي طلبته)
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- 6. تنفيذ الشات الذكي ---
-if prompt := st.chat_input("اسأل 'الدحيح' في أي جزء في المنهج..."):
-    # إضافة سؤال المستخدم للسجل
+# --- 6. الشات المباشر ---
+if prompt := st.chat_input("اسأل 'الدحيح' دلوقتي..."):
+    # حفظ سؤال المستخدم في السجل
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
         with st.spinner("بفكر بالمصري..."):
-            # بناء السياق من آخر 5 رسائل في السجل
-            history_context = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-5:]])
+            # دمج التاريخ مع السؤال الجديد عشان "يفتكر" الكلام
+            history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-3:]])
             
-            final_prompt = f"""
-            أنت 'الدحيح الأكاديمي'. جاوب باللهجة المصرية العامية الشيك.
-            المنهج المتوفر: {knowledge_base[:40000]}
-            السياق السابق: {history_context}
-            السؤال الحالي: {prompt}
-            تعليمات: ابدأ بكلمة تشجيع، استخدم إيموجي، وخليك دقيق من الكتب المرفوعة.
-            """
+            full_prompt = f"المنهج: {knowledge_base[:30000]}\nسياق المحادثة:\n{history}\nأجب بالمصري على: {prompt}"
             
             try:
-                response = model.generate_content(final_prompt)
+                response = model.generate_content(full_prompt)
                 st.markdown(response.text)
-                # إضافة إجابة المساعد للسجل
+                # حفظ رد الدحيح في السجل
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
             except:
-                st.error("السيرفر مشغول شوية يا بطل، جرب تدوس على السهم تاني.")
+                st.error("حصل ضغط على السيرفر، جرب تاني!")
